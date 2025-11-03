@@ -32,7 +32,7 @@ Defining constants in your `wp-config.php` file will override the database setti
 
 ```php
 // The URL of your production site (NO trailing slash)
-define( 'STAGE_FILE_PROXY_URL', '[https://production.example.com](https://production.example.com)' );
+define( 'STAGE_FILE_PROXY_URL', 'https://production.example.com' );
 
 // Set mode to download and save files locally (vs 'header' redirect)
 define( 'STAGE_FILE_PROXY_MODE', 'download' );
@@ -50,7 +50,7 @@ The settings are stored as standard WordPress options (`sfp_url`, `sfp_mode`, `s
 
 ```bash
 # Sets the remote URL
-wp option update sfp_url '[https://production.example.com](https://production.example.com)'
+wp option update sfp_url 'https://production.example.com'
 ```
 
 #### Set the Proxy Mode
