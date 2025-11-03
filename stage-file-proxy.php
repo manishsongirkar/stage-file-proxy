@@ -19,13 +19,13 @@
  * works before they employ it.
  *
  * CONFIGURATION:
- * - Set STAGE_FILE_PROXY_URL constant to your production domain only (e.g., 'https://us.dealertrack.com')
+ * - Set STAGE_FILE_PROXY_URL constant to your production domain only (e.g., 'https://us.example.com')
  * - Do NOT include /wp-content/uploads/ in the URL - the plugin handles this automatically
  * - The plugin preserves the complete wp-content path structure when constructing remote URLs
  *
  * SUBDIRECTORY HANDLING:
- * - Local:  https://dealertrack.test/us/wp-content/uploads/2023/01/image.jpg
- * - Remote: https://us.dealertrack.com/wp-content/uploads/2023/01/image.jpg
+ * - Local:  https://example.test/us/wp-content/uploads/2023/01/image.jpg
+ * - Remote: https://us.example.com/wp-content/uploads/2023/01/image.jpg
  * - The plugin intelligently strips local subdirectory paths (/us/) when building remote URLs
  *
  * The dynamic resizing portion was adapted from dynamic-image-resizer.
