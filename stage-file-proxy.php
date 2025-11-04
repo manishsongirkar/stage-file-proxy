@@ -3,7 +3,7 @@
 	Plugin Name: Stage File Proxy
 	Plugin URI: http://alleyinteractive.com/
 	Description: Get only the files you need from your production environment. Don't ever run this in production!
-	Version: 106
+	Version: 101
 	Author: Austin Smith, Alley Interactive
 	Author URI: http://www.alleyinteractive.com/
 */
@@ -19,8 +19,9 @@
  * works before they employ it.
  *
  * CONFIGURATION:
- * - Set STAGE_FILE_PROXY_URL constant to your production domain only (e.g., 'https://us.example.com')
- * - Do NOT include /wp-content/uploads/ in the URL - the plugin handles this automatically
+ * - Set STAGE_FILE_PROXY_URL constant to your production domain (e.g., 'https://us.example.com')
+ * - You can provide either just the domain or the full URL including wp-content/uploads/
+ * - The plugin automatically extracts the domain and handles path structure correctly
  * - The plugin preserves the complete wp-content path structure when constructing remote URLs
  *
  * SUBDIRECTORY HANDLING:
@@ -162,7 +163,7 @@ function sfp_dispatch() {
 	$remote_http_request_args = apply_filters( 'sfp_http_remote_args', array( 'timeout' => 30 ) );
 	$remote_request           = wp_remote_get( $remote_url, $remote_http_request_args );
 
-	if ( is_wp_error( $remote_request ) || $remote_request['response']['code'] > 400 ) {
+	if ( is_wp_error( $remote_request ) || ( isset( $remote_request['response']['code'] ) && $remote_request['response']['code'] > 400 ) ) {
 		// If local mode, failover to local files
 		if ( 'local' === $mode ) {
 			// Cache replacement image by hashed request URI
@@ -186,7 +187,7 @@ function sfp_dispatch() {
 		} elseif ( 'lorempixel' === $mode ) {
 			$width  = $doing_resize && ! empty( $resize['width'] ) ? $resize['width'] : 800;
 			$height = $doing_resize && ! empty( $resize['height'] ) ? $resize['height'] : 600;
-			header( 'Location: http://lorempixel.com/' . $resize['width'] . '/' . $resize['height'] );
+			header( 'Location: http://lorempixel.com/' . $width . '/' . $height );
 			exit;
 		} else {
 			sfp_error();
@@ -206,7 +207,7 @@ function sfp_dispatch() {
 
 	$upload = wp_upload_bits( $name, null, $remote_request['body'], "$year/$month" );
 
-	if ( ! $upload['error'] ) {
+	if ( ! empty( $upload['file'] ) && empty( $upload['error'] ) ) {
 		// if there was some other sort of error, and the file now does not exist, we could loop on accident.
 		// should think about some other strategies.
 		if ( $doing_resize ) {
@@ -409,10 +410,10 @@ add_action( 'admin_menu', 'sfp_admin_menu' );
 add_action( 'admin_init', 'sfp_admin_init' );
 
 /**
- * Add the Stage File Proxy settings page to the WordPress dashboard.
+ * Add the Stage File Proxy Options page to the WordPress dashboard.
  */
 function sfp_admin_menu() {
-	add_options_page( 'Stage File Proxy Settings', 'Stage File Proxy', 'manage_options', 'stage-file-proxy', 'sfp_options_page' );
+	add_options_page( 'Stage File Proxy Options', 'Stage File Proxy', 'manage_options', 'stage-file-proxy', 'sfp_options_page' );
 }
 
 /**
@@ -437,10 +438,10 @@ function sfp_admin_init() {
 }
 
 /**
- * Sanitize the URL input, ensuring it's valid and stripped of the trailing slash.
+ * Sanitize the URL input, ensuring it's valid and extracting only the domain part.
  *
  * @param string $input The URL submitted by the user.
- * @return string The sanitized URL or the old option value on error.
+ * @return string The sanitized domain URL or the old option value on error.
  */
 function sfp_sanitize_url( $input ) {
 	$sanitized = sanitize_url( $input );
@@ -451,8 +452,10 @@ function sfp_sanitize_url( $input ) {
 		return get_option( 'sfp_url' ); // Return previous value on failure
 	}
 
-	// Trim trailing slash for clean concatenation later
-	return rtrim( $sanitized, '/' );
+	// Extract domain part and remove any wp-content/uploads paths
+	$clean_url = sfp_extract_domain_from_url( $sanitized );
+
+	return $clean_url;
 }
 
 /**
@@ -476,9 +479,9 @@ function sfp_url_callback() {
 	echo '<input type="text" id="sfp-url" name="sfp_url" value="' . esc_attr( $value ) . '" placeholder="e.g., https://production.com" style="width: 100%; max-width: 400px;" ' . $disabled_attr . ' />';
 	if ( $disabled ) {
 		echo '<p class="description">Configuration overridden by <code>STAGE_FILE_PROXY_URL</code> constant: <code>' . esc_html( $constant ) . '</code><br>';
-		echo '<strong>Note:</strong> The constant should only contain the base domain (e.g., https://production.com). The plugin automatically handles the wp-content/uploads path structure.</p>';
+		echo '<strong>Note:</strong> You can provide either the base domain (e.g., https://production.com) or full URL including wp-content/uploads path. The plugin will automatically extract the domain part and handle path structure correctly.</p>';
 	} else {
-		echo '<p class="description">The base domain URL of your remote environment (e.g., https://production.com). The plugin will automatically preserve the wp-content/uploads path structure when constructing remote URLs.</p>';
+		echo '<p class="description">The base domain URL of your remote environment (e.g., https://production.com). You can also provide the full URL including wp-content/uploads path - the plugin will automatically extract the domain. The plugin will automatically preserve the wp-content/uploads path structure when constructing remote URLs.</p>';
 	}
 }
 
@@ -512,11 +515,48 @@ function sfp_mode_callback() {
 	} else {
 		echo '<p class="description">Choose the method Stage File Proxy uses to retrieve or serve files.</p>';
 	}
+
+	// Add JavaScript to show/hide local directory field based on mode selection
+	?>
+	<script type="text/javascript">
+	jQuery(document).ready(function($) {
+		function toggleLocalDirField() {
+			var selectedMode = $('#sfp-mode').val();
+			var localDirRow = $('#sfp-local-dir').closest('tr');
+
+			// Check if mode is overridden by constant
+			<?php if ( $disabled && $constant === 'local' ): ?>
+				// Mode is set to 'local' by constant, always show
+				localDirRow.show();
+			<?php elseif ( $disabled && $constant !== 'local' ): ?>
+				// Mode is set to non-local by constant, always hide
+				localDirRow.hide();
+			<?php else: ?>
+				// Mode is configurable via dropdown
+				if (selectedMode === 'local') {
+					localDirRow.show();
+				} else {
+					localDirRow.hide();
+				}
+			<?php endif; ?>
+		}
+
+		// Toggle on page load
+		toggleLocalDirField();
+
+		// Toggle when selection changes (only if not disabled by constant)
+		<?php if ( ! $disabled ): ?>
+		$('#sfp-mode').on('change', toggleLocalDirField);
+		<?php endif; ?>
+	});
+	</script>
+	<?php
 }
 
 /**
  * Renders the local directory field in the settings page.
  * Creates the input field for specifying a local fallback directory.
+ * Only visible when "Local Fallback" mode is selected.
  */
 function sfp_local_dir_callback() {
 	$value = get_option( 'sfp_local_dir', '' );
@@ -548,6 +588,16 @@ function sfp_options_page() {
 		<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
 		<?php settings_errors(); ?>
+
+		<style type="text/css">
+		/* Smooth transition for local directory field visibility */
+		.form-table tr {
+			transition: opacity 0.3s ease-in-out;
+		}
+		.form-table tr.sfp-hidden {
+			opacity: 0.3;
+		}
+		</style>
 
 		<form action="options.php" method="post">
 			<?php
@@ -823,6 +873,62 @@ function sfp_construct_remote_url( $relative_path ) {
 }
 
 /**
+ * Extract the domain part from a URL, removing any wp-content/uploads paths.
+ *
+ * This function handles cases where users might mistakenly include the full path
+ * in STAGE_FILE_PROXY_URL instead of just the domain.
+ *
+ * Examples:
+ * - 'https://example.com/wp-content/uploads/' becomes 'https://example.com'
+ * - 'https://example.com/wp-content/uploads/sites/2/' becomes 'https://example.com'
+ * - 'https://example.com' remains 'https://example.com'
+ *
+ * @param string $url The URL to extract domain from.
+ * @return string The clean domain URL without wp-content paths.
+ */
+function sfp_extract_domain_from_url( $url ) {
+	if ( empty( $url ) ) {
+		return '';
+	}
+
+	// Parse the URL to get components
+	$parsed = wp_parse_url( $url );
+
+	if ( ! $parsed || ! isset( $parsed['scheme'] ) || ! isset( $parsed['host'] ) ) {
+		return rtrim( $url, '/' ); // Return as-is if parsing fails, but trim trailing slash
+	}
+
+	// Build clean domain URL
+	$clean_url = $parsed['scheme'] . '://' . $parsed['host'];
+
+	// Add port if specified
+	if ( isset( $parsed['port'] ) ) {
+		$clean_url .= ':' . $parsed['port'];
+	}
+
+	// Check if path contains wp-content/uploads and strip everything from that point
+	if ( isset( $parsed['path'] ) && ! empty( $parsed['path'] ) ) {
+		$path = $parsed['path'];
+
+		// Find position of wp-content in the path
+		$wp_content_pos = stripos( $path, '/wp-content' );
+
+		if ( $wp_content_pos !== false ) {
+			// Keep only the path before wp-content
+			$path_before_wp_content = substr( $path, 0, $wp_content_pos );
+			if ( ! empty( $path_before_wp_content ) && $path_before_wp_content !== '/' ) {
+				$clean_url .= rtrim( $path_before_wp_content, '/' );
+			}
+		} else {
+			// No wp-content found, keep the entire path but trim trailing slash
+			$clean_url .= rtrim( $path, '/' );
+		}
+	}
+
+	return $clean_url;
+}
+
+/**
  * Get the base URL for the remote/production site.
  *
  * This URL is used to construct full URLs to remote files when local files
@@ -839,8 +945,8 @@ function sfp_get_base_url() {
 
 	if ( defined( 'STAGE_FILE_PROXY_URL' ) ) {
 		// STAGE_FILE_PROXY_URL should be a domain-only URL (e.g., 'https://production.com')
-		// The plugin automatically appends the wp-content/uploads path structure
-		$url = STAGE_FILE_PROXY_URL;
+		// But handle cases where users include full paths - extract only the domain part
+		$url = sfp_extract_domain_from_url( STAGE_FILE_PROXY_URL );
 	} else {
 		$url = get_option( 'sfp_url' );
 	}
@@ -1010,57 +1116,9 @@ function sfp_wp_get_attachment_url_rewrite( $url ) {
 }
 add_filter( 'wp_get_attachment_url', 'sfp_wp_get_attachment_url_rewrite', 99 );
 
-/**
- * Filter image src arrays to use remote sources when files don't exist locally.
- *
- * Processes the output of wp_get_attachment_image_src() to ensure remote URLs
- * are used when local files are not available.
- *
- * @param array|false $image Array containing image URL, width, height, and resize status.
- * @return array|false The potentially modified image array.
- */
-function sfp_wp_get_attachment_image_src_rewrite( $image ) {
-	if ( isset( $image[0] ) && ! empty( $image[0] ) ) {
-		$local_base = sfp_get_local_base_url();
-		if ( strpos( $image[0], $local_base ) !== false ) {
-			$local_path = sfp_map_url_to_local_path( $image[0] );
-			if ( ! file_exists( $local_path ) ) {
-				$image[0] = sfp_rewrite_local_to_remote( $image[0] );
-			}
-		}
-	}
-	return $image;
-}
-add_filter( 'wp_get_attachment_image_src', 'sfp_wp_get_attachment_image_src_rewrite', 99 );
 
-/**
- * Filter srcset sources to use remote URLs when local files don't exist.
- *
- * Rewrites the sources array used by wp_calculate_image_srcset() to point
- * to remote sources when local image variations are not available.
- *
- * @param array $sources Array of image sources for the srcset.
- * @return array The modified sources array with remote URLs.
- */
-function sfp_wp_calculate_image_srcset_rewrite( $sources ) {
-	if ( ! is_array( $sources ) || empty( $sources ) ) {
-		return $sources;
-	}
 
-	$local_base = sfp_get_local_base_url();
 
-	foreach ( $sources as $size => $source ) {
-		if ( isset( $source['url'] ) && strpos( $source['url'], $local_base ) !== false ) {
-			$local_path = sfp_map_url_to_local_path( $source['url'] );
-			if ( ! file_exists( $local_path ) ) {
-				$sources[ $size ]['url'] = sfp_rewrite_local_to_remote( $source['url'] );
-			}
-		}
-	}
-
-	return $sources;
-}
-add_filter( 'wp_calculate_image_srcset', 'sfp_wp_calculate_image_srcset_rewrite', 99 );
 
 /**
  * Enhanced srcset generation for attachments that don't exist locally.
@@ -1184,7 +1242,10 @@ function sfp_wp_get_attachment_image_attributes( $attr, $attachment, $size ) {
 	}
 
 	// Generate srcset for this image
-	$size_array = array( $attr['width'] ?? 0, $attr['height'] ?? 0 );
+	$size_array = array(
+		isset( $attr['width'] ) ? $attr['width'] : 0,
+		isset( $attr['height'] ) ? $attr['height'] : 0
+	);
 	$srcset     = wp_calculate_image_srcset( $size_array, $attr['src'], $image_meta, $attachment->ID );
 
 	if ( $srcset ) {
@@ -1196,67 +1257,7 @@ function sfp_wp_get_attachment_image_attributes( $attr, $attachment, $size ) {
 }
 add_filter( 'wp_get_attachment_image_attributes', 'sfp_wp_get_attachment_image_attributes', 99, 3 );
 
-/**
- * Filter the_content to rewrite image URLs and enhance with responsive attributes.
- *
- * Processes content to replace local URLs with remote ones and ensures proper
- * responsive image attributes are added to img tags in post content.
- *
- * @param string $content The post content.
- * @return string The modified content with enhanced image tags.
- */
-function sfp_the_content_rewrite( $content ) {
-	// Only run on the front end and if we have content.
-	if ( is_admin() || empty( $content ) ) {
-		return $content;
-	}
 
-	$local_base = sfp_get_local_base_url();
-
-	// 1. Rewrite <img> tag sources
-	$content = preg_replace_callback( '/<img[^>]+src=["\\\']([^"\\\']+)["\\\'][^>]*>/i', function ( $matches ) use ( $local_base ) {
-		$img_tag = $matches[0];
-		$src = $matches[1];
-
-		if ( strpos( $src, $local_base ) !== false ) {
-			$local_path = sfp_map_url_to_local_path( $src );
-			if ( ! file_exists( $local_path ) ) {
-				$new_src = sfp_rewrite_local_to_remote( $src );
-				$img_tag = str_replace( $src, $new_src, $img_tag );
-			}
-		}
-		return $img_tag;
-	}, $content );
-
-	// 2. Rewrite inline CSS background-image and shorthand background:url(...)
-	$content = preg_replace_callback(
-		'/\bbackground(?:-image)?\s*:\s*url\(\s*(["\']?)([^"\')]+)\1\s*\)/i',
-		function ( $matches ) use ( $local_base ) {
-			$full = $matches[0];
-			$src = $matches[2]; // clean URL only, no quotes
-
-			// Clean up common attribute encoding issues like &#039;
-			$src = str_replace( array( '&#039;', '&#39;' ), '', $src );
-
-			// Check if the source URL belongs to the local uploads domain/path
-			if ( strpos( $src, $local_base ) !== false ) {
-				$local_path = sfp_map_url_to_local_path( $src );
-
-				// If the file does NOT exist locally, rewrite the URL to the remote one.
-				if ( ! file_exists( $local_path ) ) {
-					$new  = sfp_rewrite_local_to_remote( $src );
-					$full = str_replace( $src, $new, $full );
-				}
-			}
-
-			return $full;
-		},
-		$content
-	);
-
-	return $content;
-}
-add_filter( 'the_content', 'sfp_the_content_rewrite', 99 );
 
 /**
  * Enhanced content rewriting with responsive image support.
@@ -1310,6 +1311,32 @@ function sfp_enhance_content_images( $content ) {
 			}
 
 			return $matches[0]; // Return original if no changes needed
+		},
+		$content
+	);
+
+	// Also handle CSS background-image and shorthand background:url(...)
+	$content = preg_replace_callback(
+		'/\bbackground(?:-image)?\s*:\s*url\(\s*(["\']?)([^"\')]+)\1\s*\)/i',
+		function ( $matches ) use ( $local_base ) {
+			$full = $matches[0];
+			$src = $matches[2]; // clean URL only, no quotes
+
+			// Clean up common attribute encoding issues like &#039;
+			$src = str_replace( array( '&#039;', '&#39;' ), '', $src );
+
+			// Check if the source URL belongs to the local uploads domain/path
+			if ( strpos( $src, $local_base ) !== false ) {
+				$local_path = sfp_map_url_to_local_path( $src );
+
+				// If the file does NOT exist locally, rewrite the URL to the remote one.
+				if ( ! file_exists( $local_path ) ) {
+					$new  = sfp_rewrite_local_to_remote( $src );
+					$full = str_replace( $src, $new, $full );
+				}
+			}
+
+			return $full;
 		},
 		$content
 	);
