@@ -1,112 +1,191 @@
 # Stage File Proxy
 
-Mirror (or header to) uploaded files from a remote production site on your local development copy. This utility saves the trouble of downloading a giant uploads directory without sacrificing the images that accompany content.
+Mirror (or proxy to) uploaded files from a remote production site on your local development copy. This utility saves the trouble of downloading a giant uploads directory without sacrificing the images that accompany content.
 
-This version (V105) includes robust support for **Multisite subdirectories**, **single-site subdirectories**, and **proactive URL rewriting** to handle images embedded with absolute URLs in your content.
+This version (V101) includes **comprehensive responsive image support**, **intelligent domain extraction**, **dynamic conditional admin interface**, and robust support for **all WordPress installation types** including multisite subdirectories, single-site subdirectories, and proactive URL rewriting.
 
-## ✨ Features
+## ✨ Key Features
 
-* **Dynamic Image Resizing:** Intercepts requests for cropped images (`image-300x200.jpg`) and dynamically creates the required size after downloading the original, preventing WordPress from generating sizes on upload.
+* **🖼️ Responsive Image Support:** Full srcset generation for remote images, ensuring proper responsive behavior even when files don't exist locally.
 
-* **Proactive URL Rewriting:** Rewrites absolute local image URLs (found in post content, inline CSS, attachment data, and `srcset`) to point directly to the remote server if the local file is missing. This prevents client-side 404s for embedded files.
+* **🔗 Smart URL Handling:** Automatically extracts domain from URLs - accepts both domain-only (`https://example.com`) and full paths (`https://example.com/wp-content/uploads/`) in configuration.
 
-* **Subdirectory Support:** Automatically normalizes the request URI to work correctly when the local WordPress site or Multisite subsite is installed in a subdirectory (e.g., `localhost/project/site1/`).
+* **🎯 Dynamic Image Resizing:** Intercepts requests for cropped images (`image-300x200.jpg`) and dynamically creates the required size after downloading the original.
 
-* **Configurable Modes:** Supports multiple file retrieval and serving modes.
+* **🌐 Universal WordPress Support:** Works seamlessly with single sites, multisite subdomains, multisite subdirectories, and WordPress installed in subdirectories.
+
+* **⚡ Enhanced Content Processing:** Rewrites image URLs in post content, CSS backgrounds, Gutenberg blocks, and attachment metadata with full responsive attributes.
+
+* **🎛️ Intelligent Admin Interface:** Local directory field appears only when "Local Fallback" mode is selected, providing a cleaner user experience.
 
 ## ⚙️ Configuration
 
-Configuration can be handled using **PHP Constants (Recommended)**, the **Admin Options Page**, or **WP-CLI**.
+Configuration can be handled using **PHP Constants (Recommended)** or the **Admin Settings Page**.
 
-### 1. PHP Constants (Recommended for Developers)
+### 1. PHP Constants (Recommended for Production)
 
-Defining constants in your `wp-config.php` file will override the database settings and disable the Admin Options Page fields, ensuring environment consistency.
+Defining constants in your `wp-config.php` file will override the database settings and provide environment consistency.
 
 | Constant | Type | Description |
 | :--- | :--- | :--- |
-| `STAGE_FILE_PROXY_URL` | String | **MANDATORY.** The base URL of the remote production site (e.g., `https://my-prod-site.com`). Must not have a trailing slash. |
-| `STAGE_FILE_PROXY_MODE` | String | Sets the operating mode (see Proxy Modes below). |
-| `STAGE_FILE_PROXY_LOCAL_DIR` | String | The subdirectory inside your theme for fallback images (default: `sfp-images`). |
+| `STAGE_FILE_PROXY_URL` | String | **REQUIRED.** Production site URL. Accepts domain only OR full path - plugin automatically extracts domain. |
+| `STAGE_FILE_PROXY_MODE` | String | Operating mode (see Proxy Modes below). Default: `header` |
+| `STAGE_FILE_PROXY_LOCAL_DIR` | String | Subdirectory in theme for fallback images (only for `local` mode). Default: `sfp-images` |
 
 **Example Usage (`wp-config.php`):**
 
 ```php
-// The URL of your production site (NO trailing slash)
+// Flexible URL configuration - both formats work:
 define( 'STAGE_FILE_PROXY_URL', 'https://production.example.com' );
+// OR with full path (plugin extracts domain automatically):
+// define( 'STAGE_FILE_PROXY_URL', 'https://production.example.com/wp-content/uploads/' );
 
-// Set mode to download and save files locally (vs 'header' redirect)
-define( 'STAGE_FILE_PROXY_MODE', 'download' );
-````
+// Set proxy mode
+define( 'STAGE_FILE_PROXY_MODE', 'header' );
 
-### 2\. Admin Options Page
+// Local fallback directory (only needed for 'local' mode)
+define( 'STAGE_FILE_PROXY_LOCAL_DIR', 'fallback-images' );
+```
 
-Access the settings page via **Settings \> Stage File Proxy** after activation. Fields defined by constants will be shown as read-only.
+### 2. Admin Settings Page
 
-### 3\. WP-CLI Setup
+Access **Settings → Stage File Proxy** after activation. Constant-defined settings appear as read-only with clear indicators.
 
-The settings are stored as standard WordPress options (`sfp_url`, `sfp_mode`, `sfp_local_dir`).
+### 3. WP-CLI Commands
 
-#### Set the Production URL
+For developers who prefer command-line configuration, you can manage all Stage File Proxy settings using WP-CLI:
+
+#### Set Production URL
 
 ```bash
-# Sets the remote URL
+# Set the remote production URL
 wp option update sfp_url 'https://production.example.com'
+
+# Verify the setting
+wp option get sfp_url
 ```
 
-#### Set the Proxy Mode
+#### Configure Proxy Mode
 
 ```bash
-# Set mode to download and save the file locally
-wp option update sfp_mode download
+# Set to header redirect (fastest, recommended for development)
+wp option update sfp_mode 'header'
 
-# Set mode to redirect the user directly to the remote file (faster, no local file saved)
-wp option update sfp_mode header
+# Set to download and save files locally
+wp option update sfp_mode 'download'
+
+# Set to use Photon/Jetpack CDN
+wp option update sfp_mode 'photon'
+
+# Set to local fallback images
+wp option update sfp_mode 'local'
+
+# Set to placeholder service
+wp option update sfp_mode 'lorempixel'
+
+# Check current mode
+wp option get sfp_mode
 ```
 
-#### Set Local Fallback Directory
+#### Set Local Directory (for 'local' mode only)
 
 ```bash
-# Set the directory name within the theme (for 'local' mode)
-wp option update sfp_local_dir 'my-theme-fallback-images'
+# Set custom fallback directory in theme
+wp option update sfp_local_dir 'my-fallback-images'
+
+# Reset to default
+wp option delete sfp_local_dir
+
+# Check current setting
+wp option get sfp_local_dir
+```
+
+#### Bulk Configuration
+
+```bash
+# Configure multiple settings at once
+wp option update sfp_url 'https://production.example.com'
+wp option update sfp_mode 'header'
+
+# View all Stage File Proxy settings
+wp option list --search="sfp_*"
+```
+
+#### Reset All Settings
+
+```bash
+# Remove all Stage File Proxy settings
+wp option delete sfp_url
+wp option delete sfp_mode
+wp option delete sfp_local_dir
+
+# Verify cleanup
+wp option list --search="sfp_*"
+```
+
+#### Environment-Specific Scripts
+
+**Development Setup:**
+```bash
+#!/bin/bash
+# dev-setup.sh
+wp option update sfp_url 'https://production.example.com'
+wp option update sfp_mode 'header'
+echo "✅ Stage File Proxy configured for development"
+```
+
+**Staging Setup:**
+```bash
+#!/bin/bash
+# staging-setup.sh
+wp option update sfp_url 'https://production.example.com'
+wp option update sfp_mode 'download'
+echo "✅ Stage File Proxy configured for staging"
 ```
 
 ## 🎯 Proxy Modes
 
-| Mode | Description | Behavior |
+| Mode | Behavior | Use Case |
 | :--- | :--- | :--- |
-| **`download`** | Downloads the file from the remote server, saves it to the local uploads folder, and serves it to the browser. (Recommended) | **Saves file locally.** |
-| **`header`** | Issues an HTTP 302 Redirect directly to the remote file URL. | **Does NOT save file locally.** Fastest proxy option. |
-| **`photon`** | Redirects image resize requests to the Jetpack/WordPress.com CDN URL structure. | Useful if using Jetpack's Photon service. |
-| **`local`** | If the remote request fails, serves a random replacement image from the defined `sfp_local_dir` inside the active theme. | **Development Fallback.** |
-| **`lorempixel`** | Redirects to a placeholder image service for the requested dimensions. | **Development Fallback.** |
+| **`header`** | HTTP redirect to remote file (fastest, no local storage) | **Recommended** - Development environments |
+| **`download`** | Downloads and saves files locally | Staging environments with local storage needs |
+| **`photon`** | Redirects to Jetpack/WordPress.com CDN | Sites using Jetpack Photon service |
+| **`local`** | Serves random fallback images from theme directory | Development with placeholder images |
+| **`lorempixel`** | Redirects to placeholder image service | Development with generated placeholder images |
 
 ## 🛠️ Developer Hooks
 
-Developers can interact with the plugin using standard WordPress filters:
-
 ### `sfp_http_remote_args`
-
-Allows modification of arguments passed to `wp_remote_get()` when fetching files from the remote server.
+Modify arguments for remote file requests:
 
 ```php
-/**
- * Example: Increase the timeout for large files.
- */
 add_filter( 'sfp_http_remote_args', function( $args ) {
-    $args['timeout'] = 60; // Set timeout to 60 seconds
+    $args['timeout'] = 60; // Increase timeout for large files
     return $args;
 });
 ```
 
 ### `sfp_relative_path`
-
-Allows modification of the file path used to build the final remote URL, after the local subdirectory has been stripped.
+Modify file paths before remote URL construction:
 
 ```php
-/**
- * Example: Add a custom folder slug to the path before fetching.
- */
 add_filter( 'sfp_relative_path', function( $path ) {
     return 'custom-prefix/' . $path;
 });
 ```
+
+## 🏗️ Installation Types Supported
+
+✅ **Single Site (Root)**: `https://example.com/wp-content/uploads/`
+✅ **Single Site (Subdirectory)**: `https://example.com/site/wp-content/uploads/`
+✅ **Multisite Subdomain**: `https://site1.example.com/wp-content/uploads/`
+✅ **Multisite Subdirectory**: `https://example.com/site1/wp-content/uploads/sites/2/`
+
+The plugin automatically detects your installation type and handles URL construction accordingly.
+
+## ⚠️ Important Notes
+
+- **Never run this plugin in production** - it's designed for development/staging environments only
+- The plugin automatically loads first to prevent conflicts with other plugins
+- Responsive image features work with all modern WordPress themes and Gutenberg blocks
+- All image processing maintains proper WordPress standards and metadata
