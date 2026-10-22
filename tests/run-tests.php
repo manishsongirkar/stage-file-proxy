@@ -29,6 +29,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) ) {
 }
 
 require __DIR__ . '/helpers.php';
+sfp_require_dev_environment();
 
 // =====================================================================
 // PART 1: direct function tests
@@ -49,6 +50,35 @@ remove_action( 'init', 'sfp_dispatch' );
 $uploads    = wp_upload_dir();
 $base       = $uploads['baseurl'];
 $remote_dir = SFP_TEST_PROD . $expected_base . ( is_multisite() && ! is_subdomain_install() && ! is_main_site() ? '/sites/' . get_current_blog_id() : '' );
+
+// --- The plugin must never call a function or use a constant that only exists on WordPress VIP. This plugin runs on many kinds of
+// sites, and a call to a missing VIP function (for example wpvip_get_app_name()) is a fatal error on every site without it. Names may
+// appear only as strings, in function_exists(), has_filter() and defined(). The source file is scanned, so this holds on every site.
+$vip_name   = '/^(wpvip_|wpcom_vip_|vip_|a8c_|is_vip_|wpcom_)/i';
+$vip_const  = '/^(VIP_|WPVIP_|WPCOM_|FILES_CLIENT|FILES_ACCESS)/';
+$plugin_src = (string) file_get_contents( dirname( __DIR__ ) . '/stage-file-proxy.php' );
+$vip_calls  = array();
+$tokens     = PhpToken::tokenize( $plugin_src );
+foreach ( $tokens as $position => $token ) {
+	if ( T_STRING !== $token->id ) {
+		continue;
+	}
+	$next = $position + 1;
+	while ( isset( $tokens[ $next ] ) && T_WHITESPACE === $tokens[ $next ]->id ) {
+		++$next;
+	}
+	$is_call = isset( $tokens[ $next ] ) && '(' === $tokens[ $next ]->text;
+	if ( $is_call && preg_match( $vip_name, $token->text ) ) {
+		$vip_calls[] = 'line ' . $token->line . ': ' . $token->text . '()';
+	} elseif ( preg_match( $vip_const, $token->text ) ) {
+		// A read is fine when the same expression checks defined() first: defined( 'X' ) && X stops before an undefined constant.
+		$guarded = 1 === preg_match( "/defined\(\s*['\"]" . preg_quote( $token->text, '/' ) . "['\"]\s*\)\s*&&\s*" . preg_quote( $token->text, '/' ) . '\b/', $plugin_src );
+		if ( ! $guarded ) {
+			$vip_calls[] = 'line ' . $token->line . ': ' . $token->text . ' (not guarded by defined())';
+		}
+	}
+}
+sfp_check( 'no direct call to a VIP function, and no VIP constant read without defined(), in the plugin', empty( $vip_calls ), $vip_calls );
 
 // --- Image URL style: detected from the site, and always overridable.
 $vip_signals    = function_exists( 'a8c_files_maybe_inject_image_sizes' ) || defined( 'VIP_GO_APP_ENVIRONMENT' ) || ( defined( 'WPCOM_IS_VIP_ENV' ) && WPCOM_IS_VIP_ENV );
@@ -256,9 +286,10 @@ sfp_local_dir_callback();
 $page = ob_get_clean();
 sfp_check( 'settings: fields are disabled by the constants that are defined', false !== strpos( $page, 'id="sfp-url"' ) && preg_match( '/id="sfp-url"[^>]*disabled/', $page ), $page );
 sfp_check( 'settings: no unescaped script injection', false === strpos( $page, '<script>alert' ) );
-$super = get_super_admins();
-if ( $super ) {
-	wp_set_current_user( get_user_by( 'login', $super[0] )->ID );
+$super      = get_super_admins();
+$super_user = $super ? get_user_by( 'login', $super[0] ) : false; // The login can name a user that does not exist (a fresh install).
+if ( $super_user ) {
+	wp_set_current_user( $super_user->ID );
 	$GLOBALS['title'] = 'Stage File Proxy';
 	set_current_screen( 'settings_page_stage-file-proxy' );
 	ob_start();
@@ -271,8 +302,14 @@ if ( $super ) {
 }
 
 // --- Plugin order: the plugin moves itself to the front, whatever its folder is called (the VIP filter that blocks reordering is bypassed).
-$self = plugin_basename( dirname( __DIR__ ) . '/stage-file-proxy.php' );
+// sfp_first() saves the new list with update_option(). This test must only SEE that list, never store it: the test lists are fake
+// (a/a.php, b/b.php), and saving them would deactivate the real plugins of the site that runs the tests. The capture filter runs
+// first; the last filter hands back the old value, so WordPress finds nothing to change and writes nothing. The check after the
+// block fails if the stored list was changed anyway.
+$raw_active_before = $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'active_plugins'" );
+$self              = plugin_basename( dirname( __DIR__ ) . '/stage-file-proxy.php' );
 add_filter( 'pre_update_option_active_plugins', function ( $v ) { $GLOBALS['sfp_ap'] = $v; return $v; }, 1 );
+add_filter( 'pre_update_option_active_plugins', fn( $v, $old ) => $old, PHP_INT_MAX, 2 );
 $order = function ( $list ) {
 	$GLOBALS['sfp_ap'] = null;
 	add_filter( 'pre_option_active_plugins', $cb = fn() => $list, 1 );
@@ -286,11 +323,14 @@ sfp_equals( 'plugin already first: nothing is saved', null, fn() => $order( arra
 sfp_equals( 'plugin not in the list: nothing is saved', null, fn() => $order( array( 'a/a.php', 'b/b.php' ) ) );
 sfp_equals( 'active_plugins that is not an array: nothing is saved and no error', null, fn() => $order( 'broken' ) );
 remove_all_filters( 'pre_update_option_active_plugins', 1 );
+remove_all_filters( 'pre_update_option_active_plugins', PHP_INT_MAX );
+sfp_check( 'the plugin order test did not change the stored active_plugins of this site', $raw_active_before === $GLOBALS['wpdb']->get_var( "SELECT option_value FROM {$GLOBALS['wpdb']->options} WHERE option_name = 'active_plugins'" ) );
 
 // --- Activation redirect: only for a person using the dashboard, never for AJAX or cron. No database writes are made.
 $super_logins = get_super_admins();
-if ( $super_logins && ! get_option( 'sfp_do_activation_redirect', false ) ) {
-	$admin_id = get_user_by( 'login', $super_logins[0] )->ID;
+$admin_user   = $super_logins ? get_user_by( 'login', $super_logins[0] ) : false;
+if ( $admin_user && ! get_option( 'sfp_do_activation_redirect', false ) ) {
+	$admin_id = $admin_user->ID;
 	add_filter( 'pre_option_sfp_do_activation_redirect', '__return_true' );
 	add_filter( 'wp_redirect', function ( $location ) { throw new Exception( 'redirect:' . $location ); } );
 	$redirect_for = function ( $user_id ) {

@@ -80,6 +80,17 @@ Compatibility update for WordPress 7.1.3 and PHP 8.0 to 8.5, support for any sit
 - `sfp_sanitize_url()` no longer fails when it receives a value that is not a string.
 - Doc comments: the filter name in `sfp_dispatch()` was written as `sfp_http_request_args`. The real hook is `sfp_http_remote_args`. The mode list in `sfp_get_mode()` named a `redirect` mode that does not exist.
 
+### Fixed (tests)
+
+- The plugin order test used to write its fake plugin list (`a/a.php`, `b/b.php`) into the real `active_plugins` option of the site that ran the tests, which deactivated the real plugins of that site. It now only reads the list `sfp_first()` would save: a last filter hands back the old value, so nothing is written, and a check fails if the stored list changed anyway. This was found on a real site, and reproduced and verified on a scratch install (the old test overwrote the list, the new one leaves it as it was).
+- The tests refuse to run unless the environment type is `local` or `development` (`SFP_TEST_ALLOW_ANY_ENV=1` overrides this).
+- A new check scans the plugin source and fails if the plugin calls a VIP function directly (for example `wpvip_get_app_name()`) or reads a VIP constant without `defined()`. The plugin only uses `function_exists()`, `has_filter()` and `defined()` for VIP, so it cannot cause an "undefined function" fatal on any site. Proven with two deliberate breakages.
+- The checks that need an administrator skip cleanly when the super admin login names a user that does not exist.
+
+### Notes
+
+- A fatal such as `Call to undefined function wpvip_get_app_name()` on a local copy of a VIP site does not come from this plugin. It happens with the plugin switched off as well. The newer VIP mu-plugins need `mu-plugins/000-pre-vip-config/requires.php` loaded from `wp-config.php` on local setups that do not use VIP's own environment. See the README.
+
 ### Security
 
 - **Local fallback folder:** with `STAGE_FILE_PROXY_LOCAL_DIR` set to a value such as `../../..`, local mode listed and served entries from outside the theme folder. `sfp_get_local_dir()` now falls back to `sfp-images` for any value with `..` or an absolute path. This covers the constant and values already saved in the database.

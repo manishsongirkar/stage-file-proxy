@@ -230,15 +230,27 @@ With the `vip` style:
 
 Checked on single sites, subdirectory networks and subdomain networks, with the VIP mu-plugins loaded in local mode. On a subdirectory network the remote path keeps `/sites/N` for subsites. On a subdomain network it does not, as for every site type. If your VIP network differs, use the `sfp_remote_uploads_path` filter.
 
+### Troubleshooting on a local copy of a VIP site
+
+If a page shows `Call to undefined function wpvip_get_app_name()` (for example in Query Monitor's VIP panel), the cause is not this plugin: it never calls a VIP function, and a test checks that. The newer VIP mu-plugins expect `wp-content/mu-plugins/000-pre-vip-config/requires.php` to be loaded before `vip-config.php`. VIP's own local environment does this. For any other local setup, add this to `wp-config.php`, before the `vip-config.php` include:
+
+```php
+if ( file_exists( __DIR__ . '/wp-content/mu-plugins/000-pre-vip-config/requires.php' ) ) {
+	require_once __DIR__ . '/wp-content/mu-plugins/000-pre-vip-config/requires.php';
+}
+```
+
 ## 🏗️ Installation Types Supported
 
-✅ **Single Site (Root)**: `https://example.com/wp-content/uploads/`
-✅ **Single Site (Subdirectory)**: `https://example.com/site/wp-content/uploads/`
-✅ **Multisite Subdomain**: `https://site1.example.com/wp-content/uploads/`
-✅ **Multisite Subdirectory**: `https://example.com/site1/wp-content/uploads/sites/2/`
-✅ **WordPress in its own folder** (site address and WordPress address differ): `https://example.com/wp/wp-content/uploads/`
-✅ **Custom content folder, e.g. Bedrock**: `https://example.com/app/uploads/`
-✅ **Custom `UPLOADS` constant**: `https://example.com/wp-content/media/`
+| Setup / Environment | Example Uploads Path | Status |
+| :--- | :--- | :---: |
+| **Single Site (Root)** | `https://example.com/wp-content/uploads/` | ✅ |
+| **Single Site (Subdirectory)** | `https://example.com/site/wp-content/uploads/` | ✅ |
+| **Multisite Subdomain** | `https://site1.example.com/wp-content/uploads/` | ✅ |
+| **Multisite Subdirectory** | `https://example.com/site1/wp-content/uploads/sites/2/` | ✅ |
+| **WordPress in its own folder** (site address and WordPress address differ) | `https://example.com/wp/wp-content/uploads/` | ✅ |
+| **Custom content folder, e.g. Bedrock** | `https://example.com/app/uploads/` | ✅ |
+| **Custom `UPLOADS` constant** | `https://example.com/wp-content/media/` | ✅ |
 
 The plugin reads the uploads location from WordPress and detects your installation type, so no path needs to be set. The remote site is expected to use the same folder layout as this one. If it does not, use the `sfp_remote_uploads_path` filter.
 
@@ -269,7 +281,7 @@ The plugin only needs WordPress, PHP 8.0 or later, and a web server that sends r
 
 ## 🧪 Running the tests
 
-The tests need WP-CLI and a running database. Run them from the WordPress root. Both scripts exit with a non-zero code when a check fails.
+The tests are for a local or development site: they refuse to run when `WP_ENVIRONMENT_TYPE` is anything else (override with `SFP_TEST_ALLOW_ANY_ENV=1`, at your own risk). They need WP-CLI and a running database. Run them from the WordPress root. Both scripts exit with a non-zero code when a check fails.
 
 ```bash
 # Regression suite: functions, filters, settings page, constants, and real HTTP requests

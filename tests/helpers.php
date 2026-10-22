@@ -118,6 +118,19 @@ function sfp_request( $port, $uri, $headers = array() ) {
 }
 
 /**
+ * Stop unless the site is a local or development site.
+ *
+ * The tests start web servers, load WordPress many times, and create and remove files, and the configuration
+ * tests write options. They are meant for a development copy, never for staging or production. Set
+ * SFP_TEST_ALLOW_ANY_ENV=1 to run them anyway.
+ */
+function sfp_require_dev_environment() {
+	if ( ! in_array( wp_get_environment_type(), array( 'local', 'development' ), true ) && '1' !== getenv( 'SFP_TEST_ALLOW_ANY_ENV' ) ) {
+		WP_CLI::error( 'These tests are for a local or development site, and this site is "' . wp_get_environment_type() . '". Set WP_ENVIRONMENT_TYPE to local, or set SFP_TEST_ALLOW_ANY_ENV=1 to run them anyway.' );
+	}
+}
+
+/**
  * Print the results and stop with a non-zero code when a check failed.
  *
  * @param string $label Name of the test script, for the closing message.

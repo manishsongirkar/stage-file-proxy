@@ -26,6 +26,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'WP_CLI' ) ) {
 }
 
 require __DIR__ . '/helpers.php';
+sfp_require_dev_environment();
 
 if ( '1' !== getenv( 'SFP_TEST_ALLOW_OPTION_WRITES' ) ) {
 	WP_CLI::error( 'This script writes the sfp_url, sfp_mode and sfp_local_dir options (it restores them at the end). Set SFP_TEST_ALLOW_OPTION_WRITES=1 to run it, preferably on a development copy.' );
