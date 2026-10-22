@@ -3,7 +3,7 @@
 	Plugin Name: Stage File Proxy
 	Plugin URI: http://alleyinteractive.com/
 	Description: Get only the files you need from your production environment. Don't ever run this in production!
-	Version: 101
+	Version: 102
 	Requires PHP: 8.0
 	Requires at least: 5.9
 	Author: Austin Smith, Alley Interactive

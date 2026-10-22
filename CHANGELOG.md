@@ -1,9 +1,8 @@
 # Changelog
 
 All notable changes to the plugin code are recorded here, newest first.
-The plugin header version (101) was not changed by the entries below.
 
-## 2026-10-22
+## 102 - 2026-10-22
 
 Compatibility with WordPress 7.1.3 and PHP 8.0 to 8.5, support for any site layout, correct image sizes for WordPress VIP, and stricter settings input.
 

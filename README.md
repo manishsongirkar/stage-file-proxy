@@ -2,7 +2,7 @@
 
 Mirror (or proxy to) uploaded files from a remote production site on your local development copy. This utility saves the trouble of downloading a giant uploads directory without sacrificing the images that accompany content.
 
-This version (V101) includes **comprehensive responsive image support**, **intelligent domain extraction**, **dynamic conditional admin interface**, and robust support for **all WordPress installation types** including multisite subdirectories, single-site subdirectories, and proactive URL rewriting.
+This version (V102) includes **comprehensive responsive image support**, **intelligent domain extraction**, **dynamic conditional admin interface**, **automatic WordPress VIP image sizes**, and robust support for **all WordPress installation types** including multisite subdirectories, single-site subdirectories, custom content folders such as Bedrock, and proactive URL rewriting.
 
 ## ✨ Key Features
 
