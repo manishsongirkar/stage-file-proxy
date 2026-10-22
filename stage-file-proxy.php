@@ -784,11 +784,6 @@ function sfp_sanitize_local_dir( $input ) {
 function sfp_section_callback() {
 	echo '<p>Configure the remote production site URL and the operating mode for file retrieval.</p>';
 
-	echo '<p><strong>Remote image URLs:</strong> ' . ( 'vip' === sfp_get_remote_image_style()
-		? 'WordPress VIP style, with resize arguments such as <code>hero.png?resize=200,200</code>.'
-		: 'standard WordPress style, with a file per size such as <code>hero-200x200.png</code>.' )
-		. ' The style is detected from this site. To set it, use the <code>STAGE_FILE_PROXY_IMAGE_STYLE</code> constant (<code>vip</code> or <code>standard</code>).</p>';
-
 	$in_use = array_filter( array( 'STAGE_FILE_PROXY_URL', 'STAGE_FILE_PROXY_MODE', 'STAGE_FILE_PROXY_LOCAL_DIR', 'STAGE_FILE_PROXY_IMAGE_STYLE' ), 'defined' );
 	if ( $in_use ) {
 		echo '<p><strong>Constants in use:</strong> <code>' . implode( '</code>, <code>', array_map( 'esc_html', $in_use ) ) . '</code>. ';

@@ -631,11 +631,12 @@ if ( ! defined( 'STAGE_FILE_PROXY_MODE' ) && ! defined( 'STAGE_FILE_PROXY_LOCAL_
 		add_filter( 'sfp_remote_image_style', fn() => 'standard' );
 		sfp_equals( 'constants: the sfp_remote_image_style filter has the last word', 'standard', 'sfp_get_remote_image_style' );
 	}
-	foreach ( array( 'vip' => 'WordPress VIP style', 'standard' => 'standard WordPress style' ) as $style_name => $style_text ) {
+	// The image style is chosen automatically, so the settings page shows no notice about it, for either style.
+	foreach ( array( 'vip', 'standard' ) as $style_name ) {
 		$pin_style( $style_name );
-		sfp_check( "settings: the section describes the $style_name style", false !== strpos( $render( 'sfp_section_callback' ), $style_text ) );
+		$section = $render( 'sfp_section_callback' );
+		sfp_check( "settings: no image style notice for the $style_name style", false === strpos( $section, 'Remote image URLs' ) && false === strpos( $section, 'style is detected' ) && false === strpos( $section, 'hero.png' ), $section );
 	}
-	sfp_check( 'settings: the section says which remote image style is used', false !== strpos( $sec_html, 'Remote image URLs' ) && ( false !== strpos( $sec_html, 'WordPress VIP style' ) || false !== strpos( $sec_html, 'standard WordPress style' ) ), $sec_html );
 	sfp_check( 'constants: URL field is read-only and shows the domain in use', 1 === preg_match( '/id="sfp-url"[^>]*value="' . preg_quote( SFP_TEST_PROD, '/' ) . '"[^>]*disabled/', $url_html ), $url_html );
 	sfp_check( 'constants: URL note names the constant', false !== strpos( $url_html, 'STAGE_FILE_PROXY_URL' ) && false !== strpos( $url_html, 'ignored while the constant is defined' ) );
 	sfp_check( 'constants: mode field is read-only', 1 === preg_match( '/<select id="sfp-mode"[^>]*disabled/', $mode_html ), $mode_html );

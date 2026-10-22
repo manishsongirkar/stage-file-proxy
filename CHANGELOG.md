@@ -15,7 +15,6 @@ Compatibility with WordPress 7.1.3 and PHP 8.0 to 8.5, support for any site layo
   - `sfp_rewrite_url_if_missing()`, `sfp_rewrite_srcset_value()` and `sfp_rewrite_srcset_attributes()` move the URLs of a srcset (in the `wp_calculate_image_srcset` filter, post content and image blocks) to the remote site and keep the query string. No file names are made up, and no srcset is added to an image that has none.
   - File checks ignore the query string, so `hero.png?w=200` counts as present when `hero.png` exists.
   - `download` mode fetches the original, so `hero.png?w=200` cannot save a small copy as `hero.png`.
-  - The settings page says which style is used.
   - Every one of these behaviours depends on the style being `vip`. A site without VIP signs runs the same code as before.
 - **Dynamic uploads path.** The uploads location is read from the site setup and is no longer fixed to `/wp-content/uploads`.
   - `sfp_get_remote_uploads_path()` works out the path on the remote site. It removes the parts that only exist locally (the site or WordPress folder, such as `/us`, `/blog` or `/wp`) and keeps `/sites/N` only for subdirectory networks, as before.
