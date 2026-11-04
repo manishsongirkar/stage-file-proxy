@@ -101,6 +101,67 @@ $pin_style = function ( $style ) {
 // The older checks below describe the standard style, which must work the same on every site, VIP or not.
 $pin_style( 'standard' );
 
+// --- File names this plugin made up for a size (name-r-WxHc.ext) go to the remote as a file it has. Every case is built from
+// this site's own registered image sizes and resizable extensions, so the checks hold on any site.
+$ext_regex = sfp_get_image_extensions_regex();
+$ext_list  = explode( '|', $ext_regex );
+$sizes     = array_filter( wp_get_registered_image_subsizes(), fn( $size ) => $size['width'] > 0 && $size['height'] > 0 );
+$dir       = gmdate( 'Y/m' );
+
+foreach ( array( 'standard', 'vip' ) as $style ) {
+	$pin_style( $style );
+	$wrong = array();
+
+	foreach ( $ext_list as $ext ) {
+		foreach ( $sizes as $size_name => $size ) {
+			$dims  = $size['width'] . 'x' . $size['height'];
+			$crop  = $size['crop'] ? 'c' : '';
+			$query = '?w=' . $size['width'] . '&h=' . $size['height'] . ( $crop ? '&crop=1' : '' );
+			$cases = array(
+				"$dir/photo-r-$dims$crop.$ext" => 'vip' === $style ? "$dir/photo.$ext$query" : "$dir/photo-$dims.$ext",
+				"$dir/photo-$dims.$ext"        => "$dir/photo-$dims.$ext",
+				"$dir/photo.$ext"              => "$dir/photo.$ext",
+				"$dir/photo-r-$dims$crop.$ext?ver=1" => 'vip' === $style ? "$dir/photo-r-$dims$crop.$ext?ver=1" : "$dir/photo-$dims.$ext?ver=1",
+			);
+			foreach ( $cases as $given => $expected ) {
+				$actual = sfp_get_remote_size_path( $given );
+				if ( $expected !== $actual ) {
+					$wrong[] = array( 'size' => $size_name, 'given' => $given, 'expected' => $expected, 'actual' => $actual );
+				}
+			}
+		}
+	}
+
+	sfp_check( "remote size path ($style): made-up names map to a remote file, other names are untouched, for every size and extension of this site", array() === $wrong, array_slice( $wrong, 0, 3 ) );
+}
+$pin_style( 'standard' );
+
+// --- The resizable image extensions come from the site, not from a fixed list.
+$image_ext = array();
+foreach ( wp_get_mime_types() as $ext_pattern => $mime ) {
+	if ( 0 === strpos( $mime, 'image/' ) ) {
+		$image_ext = array_merge( $image_ext, explode( '|', $ext_pattern ) );
+	}
+}
+sfp_check( 'extensions: jpg, jpeg, png and gif are always there', array() === array_diff( array( 'jpg', 'jpeg', 'png', 'gif' ), $ext_list ), $ext_regex );
+sfp_check( 'extensions: only image types, nothing the image library cannot write', array() === array_diff( $ext_list, $image_ext, array( 'jpg', 'jpeg', 'png', 'gif' ) ), $ext_regex );
+$cut_short = array();
+foreach ( $ext_list as $i => $short ) {
+	foreach ( $ext_list as $j => $long ) {
+		if ( $i < $j && strlen( $long ) > strlen( $short ) && 0 === strpos( $long, $short ) ) {
+			$cut_short[] = "$short before $long";
+		}
+	}
+}
+sfp_check( 'extensions: a longer extension is tried before one it starts with', array() === $cut_short, $cut_short );
+$kept = array();
+foreach ( $ext_list as $ext ) {
+	if ( ! preg_match( '/(.+)(-r)?-([0-9]+)x([0-9]+)(c)?\.(' . $ext_regex . ')/iU', "photo-300x200.$ext", $ext_m ) || $ext !== $ext_m[6] ) {
+		$kept[] = $ext;
+	}
+}
+sfp_check( 'extensions: the resize pattern keeps the extension of every listed type', array() === $kept, $kept );
+
 // --- Configuration typed by a human: extract the domain from whatever was pasted.
 foreach ( array(
 	'plain domain'                  => array( 'https://a.com', 'https://a.com' ),
@@ -710,6 +771,18 @@ $cases = array(
 	'lorempixel: failed remote redirects to the service' => array( "$up/2026/10/missing.jpg", $cfg( 'lorempixel' ), 'http://lorempixel.com/800/600' ),
 	'lorempixel: failed resize asks for the same size'    => array( "$up/2026/10/missing-320x240.jpg", $cfg( 'lorempixel' ), 'http://lorempixel.com/320/240' ),
 );
+// One real size name per resizable image type of this site, from its first registered size: header mode sends it to the remote as it
+// is, and photon mode passes the size.
+$first = reset( $sizes );
+if ( $first ) {
+	$dims  = $first['width'] . 'x' . $first['height'];
+	$crop  = $first['crop'] ? 'c' : '';
+	$photo = $first['crop'] ? "?w={$first['width']}&h={$first['height']}&resize={$first['width']},{$first['height']}" : "?w={$first['width']}&h={$first['height']}";
+	foreach ( $ext_list as $ext ) {
+		$cases[ "header: real .$ext size name goes to the remote as is" ] = array( "$up/$dir/photo-$dims.$ext", $cfg( 'header' ), "$ro/$dir/photo-$dims.$ext" );
+		$cases[ "photon: .$ext resize request passes the size" ]         = array( "$up/$dir/photo-$dims$crop.$ext", $cfg( 'photon' ), "$ro/$dir/photo.$ext$photo" );
+	}
+}
 foreach ( $cases as $name => $c ) {
 	$r = $get( $c[0], $c[1] );
 	sfp_check( $name, $loc( $r ) === $c[2], array( 'status' => $r['status'], 'location' => $loc( $r ), 'expected' => $c[2], 'body' => substr( $r['body'], 0, 120 ) ) );
