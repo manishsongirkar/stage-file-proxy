@@ -120,6 +120,14 @@ foreach (
 }
 $pin_style( 'standard' );
 
+// --- The resizable image extensions come from the site, not from a fixed list.
+$ext_regex = sfp_get_image_extensions_regex();
+$ext_list  = explode( '|', $ext_regex );
+sfp_check( 'extensions: jpg, jpeg, png and gif are always there', array() === array_diff( array( 'jpg', 'jpeg', 'png', 'gif' ), $ext_list ), $ext_regex );
+sfp_check( 'extensions: SVG is never resized', ! in_array( 'svg', $ext_list, true ), $ext_regex );
+sfp_check( 'extensions: jpeg comes before jpe, so it is not cut short', ! in_array( 'jpe', $ext_list, true ) || array_search( 'jpeg', $ext_list, true ) < array_search( 'jpe', $ext_list, true ), $ext_regex );
+sfp_check( 'extensions: the pattern keeps the extension of a .jpeg file', 1 === preg_match( '/(.+)(-r)?-([0-9]+)x([0-9]+)(c)?\.(' . $ext_regex . ')/iU', 'a-300x200.jpeg', $ext_m ) && 'jpeg' === $ext_m[6], $ext_regex );
+
 // --- Configuration typed by a human: extract the domain from whatever was pasted.
 foreach ( array(
 	'plain domain'                  => array( 'https://a.com', 'https://a.com' ),

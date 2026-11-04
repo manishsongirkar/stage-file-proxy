@@ -252,7 +252,7 @@ function sfp_dispatch() {
 
 	$doing_resize = false;
 	// resize an image maybe
-	if ( preg_match( '/(.+)(-r)?-([0-9]+)x([0-9]+)(c)?\.(jpe?g|png|gif|webp|avif)/iU', $relative_path, $matches ) ) {
+	if ( preg_match( '/(.+)(-r)?-([0-9]+)x([0-9]+)(c)?\.(' . sfp_get_image_extensions_regex() . ')/iU', $relative_path, $matches ) ) {
 		$doing_resize       = true;
 		$resize             = array();
 		$resize['filename'] = $matches[1] . '.' . $matches[6];
@@ -356,6 +356,50 @@ function sfp_dispatch() {
 	} else {
 		sfp_error();
 	}
+}
+
+/**
+ * Get the file extensions of the images this site can resize, as a regular expression alternation.
+ *
+ * The list is not fixed. It is every image extension WordPress knows (`wp_get_mime_types()`, which plugins and
+ * themes extend through the `mime_types` filter) that the image library on this server can write
+ * (`wp_image_editor_supports()`), so WebP, AVIF and HEIC are included where the server supports them and SVG is not.
+ * jpg, jpeg, png and gif are always included, as they were before the list was built from the site.
+ *
+ * Longer extensions come first, so `jpeg` is not cut to `jpe`. The result is safe to place inside a pattern.
+ *
+ * @return string For example `jpeg|webp|avif|jpg|png|gif`.
+ */
+function sfp_get_image_extensions_regex() {
+	static $regex;
+
+	if ( null !== $regex ) {
+		return $regex;
+	}
+
+	$extensions = array( 'jpg', 'jpeg', 'png', 'gif' );
+
+	foreach ( wp_get_mime_types() as $ext_pattern => $mime ) {
+		if ( 0 === strpos( $mime, 'image/' ) && wp_image_editor_supports( array( 'mime_type' => $mime ) ) ) {
+			$extensions = array_merge( $extensions, explode( '|', $ext_pattern ) );
+		}
+	}
+
+	/**
+	 * Filter: sfp_image_extensions
+	 *
+	 * Alter the file extensions SFP treats as resizable images.
+	 *
+	 * @param string[] $extensions Lower-case extensions without the dot.
+	 */
+	$extensions = (array) apply_filters( 'sfp_image_extensions', array_unique( array_map( 'strtolower', $extensions ) ) );
+	$extensions = array_filter( array_map( 'strval', $extensions ), 'strlen' );
+
+	usort( $extensions, fn( $a, $b ) => strlen( $b ) - strlen( $a ) );
+
+	$regex = implode( '|', array_map( fn( $ext ) => preg_quote( $ext, '/' ), $extensions ) );
+
+	return $regex;
 }
 
 /**
@@ -1183,7 +1227,7 @@ function sfp_get_random_local_file_path( $doing_resize ) {
 		// glob() returns false on error; foreach over false raises a warning in PHP 8.
 		foreach ( (array) glob( $replacement_image_path . '*' ) as $filename ) {
 			// Exclude resized images
-			if ( ! preg_match( '/.+[0-9]+x[0-9]+c?\.(jpe?g|png|gif|webp|avif)$/iU', $filename ) ) {
+			if ( ! preg_match( '/.+[0-9]+x[0-9]+c?\.(' . sfp_get_image_extensions_regex() . ')$/iU', $filename ) ) {
 				$images[] = basename( $filename );
 			}
 		}

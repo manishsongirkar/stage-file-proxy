@@ -7,7 +7,7 @@ All notable changes to the plugin code are recorded here, newest first.
 ### Fixed
 
 - **Made-up size names gave 404 in `header` mode.** `sfp_generate_metadata()` records sizes as `hero-r-150x150c.webp`, a name no server has, and `header` mode sent it to the remote site as it was. The new `sfp_get_remote_size_path()` turns it into the file the remote has: `hero-150x150.webp` for the standard style, and `hero.webp?w=150&h=150&crop=1` for the VIP style. Only a name with the `-r-` marker is changed, so every other name goes to the remote as before.
-- **WebP and AVIF sizes were not resized.** The resize pattern in `sfp_dispatch()` and the random-file filter in `sfp_get_random_local_file_path()` matched only jpg, jpeg, png and gif, so `hero-r-150x150c.webp` was asked for as a file in `download`, `local` and `photon` modes. They now match `webp` and `avif` too.
+- **WebP and AVIF sizes were not resized.** The resize pattern in `sfp_dispatch()` and the random-file filter in `sfp_get_random_local_file_path()` matched a fixed list of jpg, jpeg, png and gif, so `hero-r-150x150c.webp` was asked for as a file in `download`, `local` and `photon` modes. The list of extensions now comes from the site: `sfp_get_image_extensions_regex()` takes every image type WordPress knows (`wp_get_mime_types()`, so the `mime_types` filter applies) that the server's image library can write, plus jpg, jpeg, png and gif as before. WebP, AVIF and HEIC are included where supported, SVG is not. The new `sfp_image_extensions` filter can change the list.
 
 ## 102 - 2026-10-22
 
