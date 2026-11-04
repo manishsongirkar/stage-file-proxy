@@ -2,6 +2,13 @@
 
 All notable changes to the plugin code are recorded here, newest first.
 
+## Unreleased
+
+### Fixed
+
+- **Made-up size names gave 404 in `header` mode.** `sfp_generate_metadata()` records sizes as `hero-r-150x150c.webp`, a name no server has, and `header` mode sent it to the remote site as it was. The new `sfp_get_remote_size_path()` turns it into the file the remote has: `hero-150x150.webp` for the standard style, and `hero.webp?w=150&h=150&crop=1` for the VIP style. Only a name with the `-r-` marker is changed, so every other name goes to the remote as before.
+- **WebP and AVIF sizes were not resized.** The resize pattern in `sfp_dispatch()` and the random-file filter in `sfp_get_random_local_file_path()` matched only jpg, jpeg, png and gif, so `hero-r-150x150c.webp` was asked for as a file in `download`, `local` and `photon` modes. They now match `webp` and `avif` too.
+
 ## 102 - 2026-10-22
 
 Compatibility with WordPress 7.1.3 and PHP 8.0 to 8.5, support for any site layout, correct image sizes for WordPress VIP, and stricter settings input.

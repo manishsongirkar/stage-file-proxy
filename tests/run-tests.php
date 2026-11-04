@@ -101,6 +101,25 @@ $pin_style = function ( $style ) {
 // The older checks below describe the standard style, which must work the same on every site, VIP or not.
 $pin_style( 'standard' );
 
+// --- File names this plugin made up for a size (hero-r-150x150c.webp) go to the remote as a file it has.
+foreach (
+	array(
+		'standard: made-up crop name'            => array( 'standard', '2026/10/a-r-92x92c.webp', '2026/10/a-92x92.webp' ),
+		'standard: made-up name, no crop'        => array( 'standard', '2026/10/a-scaled-r-1638x2048.webp', '2026/10/a-scaled-1638x2048.webp' ),
+		'standard: made-up name keeps the query' => array( 'standard', '2026/10/a-r-300x200.jpg?ver=1', '2026/10/a-300x200.jpg?ver=1' ),
+		'standard: real size name is untouched'  => array( 'standard', '2026/10/a-92x92.webp', '2026/10/a-92x92.webp' ),
+		'standard: original is untouched'        => array( 'standard', '2026/10/a.webp', '2026/10/a.webp' ),
+		'vip: made-up crop name'                 => array( 'vip', '2026/10/a-r-92x92c.webp', '2026/10/a.webp?w=92&h=92&crop=1' ),
+		'vip: made-up name, no crop'             => array( 'vip', '2026/10/a-r-300x200.jpg', '2026/10/a.jpg?w=300&h=200' ),
+		'vip: name with a query is untouched'    => array( 'vip', '2026/10/a-r-300x200.jpg?w=5', '2026/10/a-r-300x200.jpg?w=5' ),
+		'vip: real size name is untouched'       => array( 'vip', '2026/10/a-92x92.webp', '2026/10/a-92x92.webp' ),
+	) as $label => $case
+) {
+	$pin_style( $case[0] );
+	sfp_equals( "remote size path: $label", $case[2], fn() => sfp_get_remote_size_path( $case[1] ) );
+}
+$pin_style( 'standard' );
+
 // --- Configuration typed by a human: extract the domain from whatever was pasted.
 foreach ( array(
 	'plain domain'                  => array( 'https://a.com', 'https://a.com' ),
@@ -704,6 +723,8 @@ $cases = array(
 	'header: file with size-like text in the name'       => array( "$up/2026/10/photo-2020x2020-final.jpg", $cfg( 'header' ), "$ro/2026/10/photo-2020x2020-final.jpg" ),
 	'header: VIP ?resize query is kept'                  => array( "$up/2026/10/a.png?resize=200,200", $cfg( 'header' ), "$ro/2026/10/a.png?resize=200,200" ),
 	'header: VIP ?w, ?h and ?crop query is kept'         => array( "$up/2026/10/a.png?w=200&h=200&crop=1", $cfg( 'header' ), "$ro/2026/10/a.png?w=200&h=200&crop=1" ),
+	'header: real WebP size name goes to the remote as is' => array( "$up/2026/10/a-92x92.webp", $cfg( 'header' ), "$ro/2026/10/a-92x92.webp" ),
+	'photon: WebP resize request passes the size'        => array( "$up/2026/10/a-300x200.webp", $cfg( 'photon' ), "$ro/2026/10/a.webp?w=300&h=200" ),
 	'photon: plain file redirects to the remote'         => array( "$up/2026/10/a.jpg", $cfg( 'photon' ), "$ro/2026/10/a.jpg" ),
 	'photon: resize request passes the size'             => array( "$up/2026/10/a-300x200.jpg", $cfg( 'photon' ), "$ro/2026/10/a.jpg?w=300&h=200" ),
 	'photon: crop request passes the crop size'          => array( "$up/2026/10/a-300x200c.jpg", $cfg( 'photon' ), "$ro/2026/10/a.jpg?w=300&h=200&resize=300,200" ),
