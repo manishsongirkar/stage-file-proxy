@@ -2,7 +2,9 @@
 
 All notable changes to the plugin code are recorded here, newest first.
 
-## Unreleased
+## 102.1 - 2026-11-20
+
+Fixes 404 errors for made-up image size names in `header` mode and adds WebP and AVIF resize support.
 
 ### Fixed
 
